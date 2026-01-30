@@ -1,3 +1,4 @@
+
 =encoding utf-8
 
 =head1 NAME
@@ -7745,6 +7746,538 @@ Returns an EVP_CIPHER structure when passed a cipher name.
  # returns: value corresponding to openssl's EVP_CIPHER structure
 
 Check openssl doc L<http://www.openssl.org/docs/crypto/EVP_EncryptInit.html|http://www.openssl.org/docs/crypto/EVP_EncryptInit.html>
+
+=item * OpenSSL_add_all_ciphers
+
+B<COMPATIBILITY:> requires OpenSSL 1.1.0 or later
+
+Registers all available cipher algorithms. Call this before using EVP_get_cipherbyname
+to ensure all ciphers are available.
+
+ Net::SSLeay::OpenSSL_add_all_ciphers();
+ # no args, no return value
+
+=item * P_EVP_CIPHER_list_all
+
+B<COMPATIBILITY:> requires OpenSSL 1.1.0 or later
+
+B<NOTE:> Does not exactly correspond to any low level API function
+
+Returns an array reference containing the names of all available ciphers.
+
+ my $ciphers = Net::SSLeay::P_EVP_CIPHER_list_all();
+ # returns: arrayref - list of available cipher names
+
+The returned cipher names can be used with L</EVP_get_cipherbyname> or L</P_EVP_Cipher>.
+
+Note that some ciphers may only be available after calling L</OpenSSL_add_all_ciphers>.
+
+=item * EVP_CIPHER_CTX_new
+
+Creates a new cipher context for encryption/decryption operations.
+
+ my $ctx = Net::SSLeay::EVP_CIPHER_CTX_new();
+ # returns: pointer to a new EVP_CIPHER_CTX structure, or undef on failure
+
+=item * EVP_CIPHER_CTX_free
+
+Frees a cipher context created by EVP_CIPHER_CTX_new.
+
+ Net::SSLeay::EVP_CIPHER_CTX_free($ctx);
+ # $ctx - pointer to EVP_CIPHER_CTX
+ # returns: no return value
+
+=item * EVP_CIPHER_CTX_reset
+
+Resets a cipher context to allow reuse for another encryption/decryption.
+
+ my $rv = Net::SSLeay::EVP_CIPHER_CTX_reset($ctx);
+ # $ctx - pointer to EVP_CIPHER_CTX
+ # returns: 1 on success, 0 on failure
+
+=item * EVP_CIPHER_CTX_set_key_length
+
+Sets the key length for the cipher context. Only useful for ciphers that
+support variable length keys.
+
+ my $rv = Net::SSLeay::EVP_CIPHER_CTX_set_key_length($ctx, $keylen);
+ # $ctx - pointer to EVP_CIPHER_CTX
+ # $keylen - key length in bytes
+ # returns: 1 on success, 0 on failure
+
+=item * EVP_CIPHER_CTX_set_padding
+
+Enables or disables PKCS#7 padding for the cipher context.
+
+ my $rv = Net::SSLeay::EVP_CIPHER_CTX_set_padding($ctx, $pad);
+ # $ctx - pointer to EVP_CIPHER_CTX
+ # $pad - 1 to enable padding (default), 0 to disable
+ # returns: 1 (always succeeds)
+
+=item * EVP_CIPHER_CTX_key_length
+
+Returns the key length of the cipher context.
+
+ my $len = Net::SSLeay::EVP_CIPHER_CTX_key_length($ctx);
+ # $ctx - pointer to EVP_CIPHER_CTX
+ # returns: key length in bytes
+
+=item * EVP_CIPHER_CTX_iv_length
+
+Returns the IV length of the cipher context.
+
+ my $len = Net::SSLeay::EVP_CIPHER_CTX_iv_length($ctx);
+ # $ctx - pointer to EVP_CIPHER_CTX
+ # returns: IV length in bytes
+
+=item * EVP_CIPHER_CTX_block_size
+
+Returns the block size of the cipher context.
+
+ my $size = Net::SSLeay::EVP_CIPHER_CTX_block_size($ctx);
+ # $ctx - pointer to EVP_CIPHER_CTX
+ # returns: block size in bytes
+
+=item * EVP_CIPHER_key_length
+
+Returns the key length for a cipher.
+
+ my $len = Net::SSLeay::EVP_CIPHER_key_length($cipher);
+ # $cipher - pointer to EVP_CIPHER (from EVP_get_cipherbyname)
+ # returns: key length in bytes
+
+=item * EVP_CIPHER_iv_length
+
+Returns the IV length for a cipher.
+
+ my $len = Net::SSLeay::EVP_CIPHER_iv_length($cipher);
+ # $cipher - pointer to EVP_CIPHER (from EVP_get_cipherbyname)
+ # returns: IV length in bytes
+
+=item * EVP_CIPHER_block_size
+
+Returns the block size for a cipher.
+
+ my $size = Net::SSLeay::EVP_CIPHER_block_size($cipher);
+ # $cipher - pointer to EVP_CIPHER (from EVP_get_cipherbyname)
+ # returns: block size in bytes
+
+=item * EVP_EncryptInit
+
+Initializes a cipher context for encryption.
+
+ my $rv = Net::SSLeay::EVP_EncryptInit($ctx, $cipher, $key, $iv);
+ # $ctx - pointer to EVP_CIPHER_CTX
+ # $cipher - pointer to EVP_CIPHER (from EVP_get_cipherbyname)
+ # $key - encryption key (binary string)
+ # $iv - initialization vector (binary string), or undef
+ # returns: 1 on success, 0 on failure
+
+=item * EVP_EncryptInit_ex
+
+Initializes a cipher context for encryption (extended version).
+
+ my $rv = Net::SSLeay::EVP_EncryptInit_ex($ctx, $cipher, $engine, $key, $iv);
+ # $ctx - pointer to EVP_CIPHER_CTX
+ # $cipher - pointer to EVP_CIPHER, or undef to reuse existing cipher
+ # $engine - pointer to ENGINE, or undef for default
+ # $key - encryption key (binary string), or undef to reuse existing key
+ # $iv - initialization vector (binary string), or undef to reuse existing IV
+ # returns: 1 on success, 0 on failure
+
+=item * EVP_EncryptUpdate
+
+Encrypts data. Can be called multiple times to encrypt streaming data.
+
+ my $ciphertext = Net::SSLeay::EVP_EncryptUpdate($ctx, $plaintext);
+ # $ctx - pointer to EVP_CIPHER_CTX (initialized for encryption)
+ # $plaintext - data to encrypt (binary string)
+ # returns: encrypted data (binary string), or undef on failure
+
+=item * EVP_EncryptFinal
+
+Finalizes encryption and returns any remaining ciphertext (including padding).
+
+ my $final = Net::SSLeay::EVP_EncryptFinal($ctx);
+ # $ctx - pointer to EVP_CIPHER_CTX
+ # returns: final encrypted data (binary string), or undef on failure
+
+=item * EVP_EncryptFinal_ex
+
+Finalizes encryption (extended version).
+
+ my $final = Net::SSLeay::EVP_EncryptFinal_ex($ctx);
+ # $ctx - pointer to EVP_CIPHER_CTX
+ # returns: final encrypted data (binary string), or undef on failure
+
+=item * EVP_DecryptInit
+
+Initializes a cipher context for decryption.
+
+ my $rv = Net::SSLeay::EVP_DecryptInit($ctx, $cipher, $key, $iv);
+ # $ctx - pointer to EVP_CIPHER_CTX
+ # $cipher - pointer to EVP_CIPHER (from EVP_get_cipherbyname)
+ # $key - decryption key (binary string)
+ # $iv - initialization vector (binary string), or undef
+ # returns: 1 on success, 0 on failure
+
+=item * EVP_DecryptInit_ex
+
+Initializes a cipher context for decryption (extended version).
+
+ my $rv = Net::SSLeay::EVP_DecryptInit_ex($ctx, $cipher, $engine, $key, $iv);
+ # $ctx - pointer to EVP_CIPHER_CTX
+ # $cipher - pointer to EVP_CIPHER, or undef to reuse existing cipher
+ # $engine - pointer to ENGINE, or undef for default
+ # $key - decryption key (binary string), or undef to reuse existing key
+ # $iv - initialization vector (binary string), or undef to reuse existing IV
+ # returns: 1 on success, 0 on failure
+
+=item * EVP_DecryptUpdate
+
+Decrypts data. Can be called multiple times to decrypt streaming data.
+
+ my $plaintext = Net::SSLeay::EVP_DecryptUpdate($ctx, $ciphertext);
+ # $ctx - pointer to EVP_CIPHER_CTX (initialized for decryption)
+ # $ciphertext - data to decrypt (binary string)
+ # returns: decrypted data (binary string), or undef on failure
+
+=item * EVP_DecryptFinal
+
+Finalizes decryption, verifies padding, and returns any remaining plaintext.
+
+ my $final = Net::SSLeay::EVP_DecryptFinal($ctx);
+ # $ctx - pointer to EVP_CIPHER_CTX
+ # returns: final decrypted data (binary string), or undef on failure (e.g., padding error)
+
+=item * EVP_DecryptFinal_ex
+
+Finalizes decryption (extended version).
+
+ my $final = Net::SSLeay::EVP_DecryptFinal_ex($ctx);
+ # $ctx - pointer to EVP_CIPHER_CTX
+ # returns: final decrypted data (binary string), or undef on failure
+
+=item * EVP_CIPHER_CTX_ctrl
+
+Allows various cipher specific parameters to be set or retrieved.
+
+ my $rv = Net::SSLeay::EVP_CIPHER_CTX_ctrl($ctx, $type, $arg, $ptr);
+ # $ctx - pointer to EVP_CIPHER_CTX
+ # $type - control type (e.g., EVP_CTRL_GCM_SET_IVLEN)
+ # $arg - integer argument (meaning depends on type)
+ # $ptr - pointer/string argument (meaning depends on type), or undef
+ # returns: positive value on success, 0 or negative on failure
+
+=item * P_EVP_Cipher
+
+B<NOTE:> Does not exactly correspond to any low level API function
+
+High-level helper function for one-shot encryption/decryption. Handles context
+creation, initialization, update, finalization, and cleanup automatically.
+
+ my $result = Net::SSLeay::P_EVP_Cipher($cipher_name, $key, $iv, $data, $enc);
+ # $cipher_name - cipher name string (e.g., 'aes-256-cbc')
+ # $key - encryption/decryption key (binary string, must match cipher's key length)
+ # $iv - initialization vector (binary string, must match cipher's IV length)
+ # $data - data to encrypt or decrypt (binary string)
+ # $enc - 1 for encryption, 0 for decryption
+ # returns: encrypted or decrypted data (binary string)
+ # dies on error (unknown cipher, key/IV length mismatch, padding error, etc.)
+
+Example - AES-256-CBC encryption/decryption:
+
+ use Net::SSLeay qw(RAND_bytes);
+ 
+ # Generate random key and IV
+ my $key = '';
+ my $iv = '';
+ RAND_bytes($key, 32);  # 256-bit key
+ RAND_bytes($iv, 16);   # 128-bit IV
+ 
+ my $plaintext = "Hello, World!";
+ 
+ # Encrypt
+ my $ciphertext = Net::SSLeay::P_EVP_Cipher('aes-256-cbc', $key, $iv, $plaintext, 1);
+ 
+ # Decrypt
+ my $decrypted = Net::SSLeay::P_EVP_Cipher('aes-256-cbc', $key, $iv, $ciphertext, 0);
+ # $decrypted eq $plaintext
+
+Example - Low-level API usage:
+
+ my $ctx = Net::SSLeay::EVP_CIPHER_CTX_new();
+ my $cipher = Net::SSLeay::EVP_get_cipherbyname('aes-256-cbc');
+ 
+ # Encrypt
+ Net::SSLeay::EVP_EncryptInit_ex($ctx, $cipher, undef, $key, $iv);
+ my $ciphertext = Net::SSLeay::EVP_EncryptUpdate($ctx, $plaintext);
+ $ciphertext .= Net::SSLeay::EVP_EncryptFinal_ex($ctx);
+ 
+ # Reset context for decryption
+ Net::SSLeay::EVP_CIPHER_CTX_reset($ctx);
+ 
+ # Decrypt
+ Net::SSLeay::EVP_DecryptInit_ex($ctx, $cipher, undef, $key, $iv);
+ my $decrypted = Net::SSLeay::EVP_DecryptUpdate($ctx, $ciphertext);
+ $decrypted .= Net::SSLeay::EVP_DecryptFinal_ex($ctx);
+ 
+ Net::SSLeay::EVP_CIPHER_CTX_free($ctx);
+
+=item * P_EVP_Cipher_AEAD_encrypt
+
+B<NOTE:> Does not exactly correspond to any low level API function
+
+High-level helper for AEAD (Authenticated Encryption with Associated Data) modes
+like GCM, CCM, and ChaCha20-Poly1305. Returns both the ciphertext and authentication tag.
+
+ my ($ciphertext, $tag) = Net::SSLeay::P_EVP_Cipher_AEAD_encrypt($cipher, $key, $iv, $plaintext, $aad);
+ # $cipher - cipher name (e.g., 'aes-256-gcm', 'chacha20-poly1305')
+ # $key - encryption key (binary string, must match cipher's key length)
+ # $iv - initialization vector (binary string, 12 bytes recommended for GCM)
+ # $plaintext - data to encrypt (binary string)
+ # $aad - [optional] additional authenticated data (not encrypted, but authenticated)
+ # returns: ($ciphertext, $tag) - ciphertext and 16-byte authentication tag
+ # dies on error
+
+=item * P_EVP_Cipher_AEAD_decrypt
+
+B<NOTE:> Does not exactly correspond to any low level API function
+
+High-level helper for AEAD decryption. Verifies the authentication tag and dies
+if the data has been tampered with.
+
+ my $plaintext = Net::SSLeay::P_EVP_Cipher_AEAD_decrypt($cipher, $key, $iv, $ciphertext, $tag, $aad);
+ # $cipher - cipher name (e.g., 'aes-256-gcm', 'chacha20-poly1305')
+ # $key - decryption key (binary string)
+ # $iv - initialization vector (binary string, same as used for encryption)
+ # $ciphertext - data to decrypt (binary string)
+ # $tag - 16-byte authentication tag from encryption
+ # $aad - [optional] additional authenticated data (must match what was used for encryption)
+ # returns: decrypted plaintext (binary string)
+ # dies on authentication failure (data corrupted or tampered)
+
+=item * encrypt_with_prepended_iv
+
+B<NOTE:> Pure Perl convenience function
+
+Encrypts data using a standard cipher mode (CBC, CTR, CFB, OFB) with an automatically
+generated random IV that is prepended to the ciphertext.
+
+ my $encrypted = Net::SSLeay::encrypt_with_prepended_iv($cipher, $key, $plaintext);
+ # $cipher - cipher name (e.g., 'aes-256-cbc', 'aes-128-ctr')
+ # $key - encryption key (binary string, must match cipher's key length)
+ # $plaintext - data to encrypt (binary string)
+ # returns: IV || ciphertext (binary string)
+ # dies on error
+
+B<NOT suitable for AEAD modes (GCM, CCM)> - use encrypt_aead_with_prepended_iv instead.
+
+=item * decrypt_with_prepended_iv
+
+B<NOTE:> Pure Perl convenience function
+
+Decrypts data that was encrypted with encrypt_with_prepended_iv. Extracts the IV
+from the beginning of the data.
+
+ my $plaintext = Net::SSLeay::decrypt_with_prepended_iv($cipher, $key, $data);
+ # $cipher - cipher name (e.g., 'aes-256-cbc', 'aes-128-ctr')
+ # $key - decryption key (binary string)
+ # $data - IV || ciphertext as produced by encrypt_with_prepended_iv
+ # returns: decrypted plaintext (binary string)
+ # dies on error (padding error, etc.)
+
+=item * encrypt_aead_with_prepended_iv
+
+B<NOTE:> Pure Perl convenience function
+
+Encrypts data using an AEAD cipher (GCM, ChaCha20-Poly1305) with an automatically
+generated 12-byte IV. Returns a self-contained blob with IV, ciphertext, and auth tag.
+
+ my $encrypted = Net::SSLeay::encrypt_aead_with_prepended_iv($cipher, $key, $plaintext, $aad);
+ # $cipher - AEAD cipher name (e.g., 'aes-256-gcm', 'chacha20-poly1305')
+ # $key - encryption key (binary string, must match cipher's key length)
+ # $plaintext - data to encrypt (binary string)
+ # $aad - [optional] additional authenticated data
+ # returns: IV (12 bytes) || ciphertext || tag (16 bytes)
+ # dies on error
+
+=item * decrypt_aead_with_prepended_iv
+
+B<NOTE:> Pure Perl convenience function
+
+Decrypts and authenticates data that was encrypted with encrypt_aead_with_prepended_iv.
+Dies if authentication fails (data has been tampered with).
+
+ my $plaintext = Net::SSLeay::decrypt_aead_with_prepended_iv($cipher, $key, $data, $aad);
+ # $cipher - AEAD cipher name (e.g., 'aes-256-gcm', 'chacha20-poly1305')
+ # $key - decryption key (binary string)
+ # $data - encrypted blob from encrypt_aead_with_prepended_iv
+ # $aad - [optional] additional authenticated data (must match encryption)
+ # returns: decrypted plaintext (binary string)
+ # dies on authentication failure
+
+Example - CBC encryption with auto-IV:
+
+ use Net::SSLeay qw(RAND_bytes encrypt_with_prepended_iv decrypt_with_prepended_iv);
+ 
+ my $key = '';
+ RAND_bytes($key, 32);  # 256-bit key
+ 
+ my $plaintext = "Secret message";
+ my $encrypted = encrypt_with_prepended_iv('aes-256-cbc', $key, $plaintext);
+ my $decrypted = decrypt_with_prepended_iv('aes-256-cbc', $key, $encrypted);
+ # $decrypted eq $plaintext
+
+Example - AES-GCM authenticated encryption:
+
+ use Net::SSLeay qw(RAND_bytes encrypt_aead_with_prepended_iv decrypt_aead_with_prepended_iv);
+ 
+ my $key = '';
+ RAND_bytes($key, 32);  # 256-bit key
+ 
+ my $plaintext = "Secret message";
+ my $header = "From: Alice";  # AAD - authenticated but not encrypted
+ 
+ my $encrypted = encrypt_aead_with_prepended_iv('aes-256-gcm', $key, $plaintext, $header);
+ my $decrypted = decrypt_aead_with_prepended_iv('aes-256-gcm', $key, $encrypted, $header);
+ # $decrypted eq $plaintext
+ 
+ # If anyone tampers with $encrypted or $header, decryption will die
+
+=item * encrypt_to_file_with_prepended_iv
+
+B<NOTE:> Pure Perl convenience function
+
+Encrypts plaintext with a randomly generated IV and writes IV || ciphertext to a file.
+For standard (non-AEAD) modes like CBC, CTR, CFB, OFB.
+
+ my $bytes = Net::SSLeay::encrypt_to_file_with_prepended_iv($cipher, $key, $plaintext, $filepath);
+ # $cipher - cipher name (e.g., 'aes-256-cbc')
+ # $key - encryption key
+ # $plaintext - data to encrypt
+ # $filepath - output file path
+ # returns: bytes written
+ # dies on error
+
+=item * decrypt_file_with_prepended_iv
+
+B<NOTE:> Pure Perl convenience function
+
+Reads and decrypts a file encrypted with encrypt_to_file_with_prepended_iv.
+
+ my $plaintext = Net::SSLeay::decrypt_file_with_prepended_iv($cipher, $key, $filepath);
+ # $cipher - cipher name
+ # $key - decryption key
+ # $filepath - encrypted file path
+ # returns: decrypted plaintext
+ # dies on error
+
+=item * encrypt_aead_to_file_with_prepended_iv
+
+B<NOTE:> Pure Perl convenience function
+
+Encrypts plaintext using AEAD mode and writes IV || ciphertext || tag to a file.
+
+ my $bytes = Net::SSLeay::encrypt_aead_to_file_with_prepended_iv($cipher, $key, $plaintext, $filepath, $aad);
+ # $cipher - AEAD cipher name (e.g., 'aes-256-gcm')
+ # $key - encryption key
+ # $plaintext - data to encrypt
+ # $filepath - output file path
+ # $aad - [optional] additional authenticated data
+ # returns: bytes written
+ # dies on error
+
+=item * decrypt_aead_file_with_prepended_iv
+
+B<NOTE:> Pure Perl convenience function
+
+Reads and decrypts a file encrypted with encrypt_aead_to_file_with_prepended_iv.
+Dies if authentication fails.
+
+ my $plaintext = Net::SSLeay::decrypt_aead_file_with_prepended_iv($cipher, $key, $filepath, $aad);
+ # $cipher - AEAD cipher name
+ # $key - decryption key
+ # $filepath - encrypted file path
+ # $aad - [optional] AAD (must match encryption)
+ # returns: decrypted plaintext
+ # dies on authentication failure
+
+=item * encrypt_file_to_file_with_prepended_iv
+
+B<NOTE:> Pure Perl convenience function
+
+Encrypts an input file to an output file using streaming (64KB chunks).
+Prepends randomly generated IV to output file.
+
+ Net::SSLeay::encrypt_file_to_file_with_prepended_iv($cipher, $key, $infile, $outfile);
+ # $cipher - cipher name (e.g., 'aes-256-cbc')
+ # $key - encryption key
+ # $infile - input file path
+ # $outfile - output file path
+ # dies on error
+
+=item * decrypt_file_to_file_with_prepended_iv
+
+B<NOTE:> Pure Perl convenience function
+
+Decrypts a file encrypted with encrypt_file_to_file_with_prepended_iv.
+Uses streaming for memory-efficient processing of large files.
+
+ Net::SSLeay::decrypt_file_to_file_with_prepended_iv($cipher, $key, $infile, $outfile);
+ # $cipher - cipher name
+ # $key - decryption key
+ # $infile - encrypted file path
+ # $outfile - output file path
+ # dies on error
+
+=item * encrypt_aead_file_to_file_with_prepended_iv
+
+B<NOTE:> Pure Perl convenience function
+
+Encrypts an input file to an output file using AEAD mode.
+Writes IV || ciphertext || tag to output file.
+
+ Net::SSLeay::encrypt_aead_file_to_file_with_prepended_iv($cipher, $key, $infile, $outfile, $aad);
+ # $cipher - AEAD cipher name (e.g., 'aes-256-gcm')
+ # $key - encryption key
+ # $infile - input file path
+ # $outfile - output file path
+ # $aad - [optional] additional authenticated data
+ # dies on error
+
+=item * decrypt_aead_file_to_file_with_prepended_iv
+
+B<NOTE:> Pure Perl convenience function
+
+Decrypts a file encrypted with encrypt_aead_file_to_file_with_prepended_iv.
+B<Note:> For AEAD modes, the entire encrypted file is loaded into memory
+because the authentication tag is appended at the end.
+
+ Net::SSLeay::decrypt_aead_file_to_file_with_prepended_iv($cipher, $key, $infile, $outfile, $aad);
+ # $cipher - AEAD cipher name
+ # $key - decryption key
+ # $infile - encrypted file path
+ # $outfile - output file path
+ # $aad - [optional] AAD (must match encryption)
+ # dies on authentication failure
+
+Example - file encryption:
+
+ use Net::SSLeay qw(RAND_bytes);
+ 
+ my $key = '';
+ Net::SSLeay::RAND_bytes($key, 32);
+ 
+ # Encrypt plaintext to file (CBC)
+ Net::SSLeay::encrypt_to_file_with_prepended_iv('aes-256-cbc', $key, $plaintext, '/tmp/secret.enc');
+ 
+ # Decrypt file back to plaintext
+ my $recovered = Net::SSLeay::decrypt_file_with_prepended_iv('aes-256-cbc', $key, '/tmp/secret.enc');
+ 
+ # Stream large file (file-to-file)
+ Net::SSLeay::encrypt_file_to_file_with_prepended_iv('aes-256-cbc', $key, '/path/large.bin', '/path/large.enc');
+ Net::SSLeay::decrypt_file_to_file_with_prepended_iv('aes-256-cbc', $key, '/path/large.enc', '/path/large.dec');
 
 =back
 

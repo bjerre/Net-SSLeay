@@ -419,6 +419,16 @@ static void handler_list_md_fn(const EVP_MD *m, const char *from, const char *to
 }
 #endif
 
+/* ======= special handler used by OBJ_NAME_do_all_sorted for ciphers ======= */
+
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+static void handler_list_cipher_fn(const OBJ_NAME *name, void *arg)
+{
+  if (name->type != OBJ_NAME_TYPE_CIPHER_METH) return;
+  av_push((AV *)arg, newSVpv(name->name, 0));
+}
+#endif
+
 /* ============= callbacks - basic info =============
  *
  * PLEASE READ THIS BEFORE YOU ADD ANY NEW CALLBACK!!
@@ -6288,6 +6298,562 @@ EVP_Digest(...)
 
 const EVP_CIPHER *
 EVP_get_cipherbyname(const char *name)
+
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+
+void
+OpenSSL_add_all_ciphers()
+
+SV *
+P_EVP_CIPHER_list_all()
+    INIT:
+        AV *results;
+        OBJ_NAME *name_entry;
+        int type_id;
+    CODE:
+        results = (AV *)sv_2mortal((SV *)newAV());
+        type_id = OBJ_NAME_TYPE_CIPHER_METH;
+        name_entry = (OBJ_NAME *)OBJ_NAME_get(NULL, type_id);
+        OBJ_NAME_do_all_sorted(type_id, handler_list_cipher_fn, results);
+        RETVAL = newRV((SV *)results);
+    OUTPUT:
+        RETVAL
+
+#endif
+
+ #
+ # EVP_CIPHER_CTX functions for symmetric cipher operations
+ # EVP_CIPHER_CTX_new and EVP_CIPHER_CTX_free require OpenSSL 1.0.0+
+ # EVP_CIPHER_CTX_reset requires OpenSSL 1.1.0+
+ #
+
+#if OPENSSL_VERSION_NUMBER >= 0x10000000L
+
+EVP_CIPHER_CTX *
+EVP_CIPHER_CTX_new()
+
+void
+EVP_CIPHER_CTX_free(ctx)
+        EVP_CIPHER_CTX *ctx
+
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+
+int
+EVP_CIPHER_CTX_reset(ctx)
+        EVP_CIPHER_CTX *ctx
+
+#endif /* OpenSSL 1.1.0+ for EVP_CIPHER_CTX_reset */
+
+int
+EVP_CIPHER_CTX_set_key_length(ctx, keylen)
+        EVP_CIPHER_CTX *ctx
+        int keylen
+
+int
+EVP_CIPHER_CTX_set_padding(ctx, pad)
+        EVP_CIPHER_CTX *ctx
+        int pad
+
+int
+EVP_CIPHER_CTX_key_length(ctx)
+        EVP_CIPHER_CTX *ctx
+
+int
+EVP_CIPHER_CTX_iv_length(ctx)
+        EVP_CIPHER_CTX *ctx
+
+int
+EVP_CIPHER_CTX_block_size(ctx)
+        EVP_CIPHER_CTX *ctx
+
+int
+EVP_CIPHER_key_length(cipher)
+        const EVP_CIPHER *cipher
+
+int
+EVP_CIPHER_iv_length(cipher)
+        const EVP_CIPHER *cipher
+
+int
+EVP_CIPHER_block_size(cipher)
+        const EVP_CIPHER *cipher
+
+int
+EVP_EncryptInit(ctx, type, key, iv)
+        EVP_CIPHER_CTX *ctx
+        const EVP_CIPHER *type
+        SV *key
+        SV *iv
+    PREINIT:
+        STRLEN key_len, iv_len;
+        unsigned char *key_data = NULL;
+        unsigned char *iv_data = NULL;
+    CODE:
+        if (SvOK(key))
+            key_data = (unsigned char *)SvPVbyte(key, key_len);
+        if (SvOK(iv))
+            iv_data = (unsigned char *)SvPVbyte(iv, iv_len);
+        RETVAL = EVP_EncryptInit(ctx, type, key_data, iv_data);
+    OUTPUT:
+        RETVAL
+
+int
+EVP_EncryptInit_ex(ctx, type, impl, key, iv)
+        EVP_CIPHER_CTX *ctx
+        SV *type
+        SV *impl
+        SV *key
+        SV *iv
+    PREINIT:
+        STRLEN key_len, iv_len;
+        unsigned char *key_data = NULL;
+        unsigned char *iv_data = NULL;
+        const EVP_CIPHER *cipher = NULL;
+        ENGINE *engine = NULL;
+    CODE:
+        if (SvOK(type))
+            cipher = INT2PTR(const EVP_CIPHER *, SvIV(type));
+        if (SvOK(impl))
+            engine = INT2PTR(ENGINE *, SvIV(impl));
+        if (SvOK(key))
+            key_data = (unsigned char *)SvPVbyte(key, key_len);
+        if (SvOK(iv))
+            iv_data = (unsigned char *)SvPVbyte(iv, iv_len);
+        RETVAL = EVP_EncryptInit_ex(ctx, cipher, engine, key_data, iv_data);
+    OUTPUT:
+        RETVAL
+
+void
+EVP_EncryptUpdate(ctx, data)
+        EVP_CIPHER_CTX *ctx
+        SV *data
+    PREINIT:
+        STRLEN in_len;
+        unsigned char *in_data;
+        unsigned char *out_data;
+        int out_len = 0;
+        int block_size;
+    PPCODE:
+        in_data = (unsigned char *)SvPVbyte(data, in_len);
+        block_size = EVP_CIPHER_CTX_block_size(ctx);
+        Newx(out_data, in_len + block_size, unsigned char);
+        if (EVP_EncryptUpdate(ctx, out_data, &out_len, in_data, (int)in_len)) {
+            XPUSHs(sv_2mortal(newSVpvn((char *)out_data, out_len)));
+        } else {
+            XPUSHs(&PL_sv_undef);
+        }
+        Safefree(out_data);
+
+void
+EVP_EncryptFinal(ctx)
+        EVP_CIPHER_CTX *ctx
+    PREINIT:
+        unsigned char out_data[EVP_MAX_BLOCK_LENGTH];
+        int out_len = 0;
+    PPCODE:
+        if (EVP_EncryptFinal(ctx, out_data, &out_len)) {
+            XPUSHs(sv_2mortal(newSVpvn((char *)out_data, out_len)));
+        } else {
+            XPUSHs(&PL_sv_undef);
+        }
+
+void
+EVP_EncryptFinal_ex(ctx)
+        EVP_CIPHER_CTX *ctx
+    PREINIT:
+        unsigned char out_data[EVP_MAX_BLOCK_LENGTH];
+        int out_len = 0;
+    PPCODE:
+        if (EVP_EncryptFinal_ex(ctx, out_data, &out_len)) {
+            XPUSHs(sv_2mortal(newSVpvn((char *)out_data, out_len)));
+        } else {
+            XPUSHs(&PL_sv_undef);
+        }
+
+int
+EVP_DecryptInit(ctx, type, key, iv)
+        EVP_CIPHER_CTX *ctx
+        const EVP_CIPHER *type
+        SV *key
+        SV *iv
+    PREINIT:
+        STRLEN key_len, iv_len;
+        unsigned char *key_data = NULL;
+        unsigned char *iv_data = NULL;
+    CODE:
+        if (SvOK(key))
+            key_data = (unsigned char *)SvPVbyte(key, key_len);
+        if (SvOK(iv))
+            iv_data = (unsigned char *)SvPVbyte(iv, iv_len);
+        RETVAL = EVP_DecryptInit(ctx, type, key_data, iv_data);
+    OUTPUT:
+        RETVAL
+
+int
+EVP_DecryptInit_ex(ctx, type, impl, key, iv)
+        EVP_CIPHER_CTX *ctx
+        SV *type
+        SV *impl
+        SV *key
+        SV *iv
+    PREINIT:
+        STRLEN key_len, iv_len;
+        unsigned char *key_data = NULL;
+        unsigned char *iv_data = NULL;
+        const EVP_CIPHER *cipher = NULL;
+        ENGINE *engine = NULL;
+    CODE:
+        if (SvOK(type))
+            cipher = INT2PTR(const EVP_CIPHER *, SvIV(type));
+        if (SvOK(impl))
+            engine = INT2PTR(ENGINE *, SvIV(impl));
+        if (SvOK(key))
+            key_data = (unsigned char *)SvPVbyte(key, key_len);
+        if (SvOK(iv))
+            iv_data = (unsigned char *)SvPVbyte(iv, iv_len);
+        RETVAL = EVP_DecryptInit_ex(ctx, cipher, engine, key_data, iv_data);
+    OUTPUT:
+        RETVAL
+
+void
+EVP_DecryptUpdate(ctx, data)
+        EVP_CIPHER_CTX *ctx
+        SV *data
+    PREINIT:
+        STRLEN in_len;
+        unsigned char *in_data;
+        unsigned char *out_data;
+        int out_len = 0;
+        int block_size;
+    PPCODE:
+        in_data = (unsigned char *)SvPVbyte(data, in_len);
+        block_size = EVP_CIPHER_CTX_block_size(ctx);
+        Newx(out_data, in_len + block_size, unsigned char);
+        if (EVP_DecryptUpdate(ctx, out_data, &out_len, in_data, (int)in_len)) {
+            XPUSHs(sv_2mortal(newSVpvn((char *)out_data, out_len)));
+        } else {
+            XPUSHs(&PL_sv_undef);
+        }
+        Safefree(out_data);
+
+void
+EVP_DecryptFinal(ctx)
+        EVP_CIPHER_CTX *ctx
+    PREINIT:
+        unsigned char out_data[EVP_MAX_BLOCK_LENGTH];
+        int out_len = 0;
+    PPCODE:
+        if (EVP_DecryptFinal(ctx, out_data, &out_len)) {
+            XPUSHs(sv_2mortal(newSVpvn((char *)out_data, out_len)));
+        } else {
+            XPUSHs(&PL_sv_undef);
+        }
+
+void
+EVP_DecryptFinal_ex(ctx)
+        EVP_CIPHER_CTX *ctx
+    PREINIT:
+        unsigned char out_data[EVP_MAX_BLOCK_LENGTH];
+        int out_len = 0;
+    PPCODE:
+        if (EVP_DecryptFinal_ex(ctx, out_data, &out_len)) {
+            XPUSHs(sv_2mortal(newSVpvn((char *)out_data, out_len)));
+        } else {
+            XPUSHs(&PL_sv_undef);
+        }
+
+int
+EVP_CIPHER_CTX_ctrl(ctx, type, arg, ptr)
+        EVP_CIPHER_CTX *ctx
+        int type
+        int arg
+        SV *ptr
+    PREINIT:
+        STRLEN ptr_len;
+        void *ptr_data = NULL;
+    CODE:
+        if (SvOK(ptr))
+            ptr_data = (void *)SvPVbyte(ptr, ptr_len);
+        RETVAL = EVP_CIPHER_CTX_ctrl(ctx, type, arg, ptr_data);
+    OUTPUT:
+        RETVAL
+
+ #
+ # High-level cipher helper functions (P_ prefix)
+ #
+
+void
+P_EVP_Cipher(cipher_name, key, iv, data, enc)
+        const char *cipher_name
+        SV *key
+        SV *iv
+        SV *data
+        int enc
+    PREINIT:
+        EVP_CIPHER_CTX *ctx = NULL;
+        const EVP_CIPHER *cipher = NULL;
+        STRLEN key_len, iv_len, data_len;
+        unsigned char *key_data, *iv_data, *in_data;
+        unsigned char *out_data = NULL;
+        int out_len = 0, final_len = 0;
+        int expected_key_len, expected_iv_len;
+        int block_size;
+    PPCODE:
+        cipher = EVP_get_cipherbyname(cipher_name);
+        if (!cipher)
+            croak("Unknown cipher: %s", cipher_name);
+
+        expected_key_len = EVP_CIPHER_key_length(cipher);
+        expected_iv_len = EVP_CIPHER_iv_length(cipher);
+        block_size = EVP_CIPHER_block_size(cipher);
+
+        key_data = (unsigned char *)SvPVbyte(key, key_len);
+        iv_data = (unsigned char *)SvPVbyte(iv, iv_len);
+        in_data = (unsigned char *)SvPVbyte(data, data_len);
+
+        if ((int)key_len != expected_key_len)
+            croak("Key length mismatch: expected %d bytes, got %lu", expected_key_len, (unsigned long)key_len);
+        if (expected_iv_len > 0 && (int)iv_len != expected_iv_len)
+            croak("IV length mismatch: expected %d bytes, got %lu", expected_iv_len, (unsigned long)iv_len);
+
+        ctx = EVP_CIPHER_CTX_new();
+        if (!ctx)
+            croak("EVP_CIPHER_CTX_new failed");
+
+        Newx(out_data, data_len + block_size + EVP_MAX_BLOCK_LENGTH, unsigned char);
+
+        if (enc) {
+            if (!EVP_EncryptInit_ex(ctx, cipher, NULL, key_data, iv_data)) {
+                Safefree(out_data);
+                EVP_CIPHER_CTX_free(ctx);
+                croak("EVP_EncryptInit_ex failed");
+            }
+            if (!EVP_EncryptUpdate(ctx, out_data, &out_len, in_data, (int)data_len)) {
+                Safefree(out_data);
+                EVP_CIPHER_CTX_free(ctx);
+                croak("EVP_EncryptUpdate failed");
+            }
+            if (!EVP_EncryptFinal_ex(ctx, out_data + out_len, &final_len)) {
+                Safefree(out_data);
+                EVP_CIPHER_CTX_free(ctx);
+                croak("EVP_EncryptFinal_ex failed");
+            }
+        } else {
+            if (!EVP_DecryptInit_ex(ctx, cipher, NULL, key_data, iv_data)) {
+                Safefree(out_data);
+                EVP_CIPHER_CTX_free(ctx);
+                croak("EVP_DecryptInit_ex failed");
+            }
+            if (!EVP_DecryptUpdate(ctx, out_data, &out_len, in_data, (int)data_len)) {
+                Safefree(out_data);
+                EVP_CIPHER_CTX_free(ctx);
+                croak("EVP_DecryptUpdate failed");
+            }
+            if (!EVP_DecryptFinal_ex(ctx, out_data + out_len, &final_len)) {
+                Safefree(out_data);
+                EVP_CIPHER_CTX_free(ctx);
+                croak("EVP_DecryptFinal_ex failed: padding error or corrupted data");
+            }
+        }
+
+        EVP_CIPHER_CTX_free(ctx);
+        XPUSHs(sv_2mortal(newSVpvn((char *)out_data, out_len + final_len)));
+        Safefree(out_data);
+
+ #
+ # AEAD cipher helpers (GCM, CCM, ChaCha20-Poly1305)
+ # These handle the authentication tag
+ #
+
+#define AEAD_TAG_SIZE 16
+
+void
+P_EVP_Cipher_AEAD_encrypt(cipher_name, key, iv, plaintext, aad=&PL_sv_undef)
+        const char *cipher_name
+        SV *key
+        SV *iv
+        SV *plaintext
+        SV *aad
+    PREINIT:
+        EVP_CIPHER_CTX *ctx = NULL;
+        const EVP_CIPHER *cipher = NULL;
+        STRLEN key_len, iv_len, plain_len, aad_len;
+        unsigned char *key_data, *iv_data, *plain_data, *aad_data = NULL;
+        unsigned char *out_data = NULL;
+        unsigned char tag[AEAD_TAG_SIZE];
+        int out_len = 0, final_len = 0, aad_out_len = 0;
+        int expected_key_len;
+    PPCODE:
+        cipher = EVP_get_cipherbyname(cipher_name);
+        if (!cipher)
+            croak("Unknown cipher: %s", cipher_name);
+
+        expected_key_len = EVP_CIPHER_key_length(cipher);
+
+        key_data = (unsigned char *)SvPVbyte(key, key_len);
+        iv_data = (unsigned char *)SvPVbyte(iv, iv_len);
+        plain_data = (unsigned char *)SvPVbyte(plaintext, plain_len);
+
+        if ((int)key_len != expected_key_len)
+            croak("Key length mismatch: expected %d bytes, got %lu", expected_key_len, (unsigned long)key_len);
+
+        ctx = EVP_CIPHER_CTX_new();
+        if (!ctx)
+            croak("EVP_CIPHER_CTX_new failed");
+
+        /* Initialize cipher - first set cipher type */
+        if (!EVP_EncryptInit_ex(ctx, cipher, NULL, NULL, NULL)) {
+            EVP_CIPHER_CTX_free(ctx);
+            croak("EVP_EncryptInit_ex (cipher) failed");
+        }
+
+        /* Set IV length if needed (GCM allows variable IV length) */
+        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, (int)iv_len, NULL)) {
+            EVP_CIPHER_CTX_free(ctx);
+            croak("Failed to set IV length");
+        }
+
+        /* Now set key and IV */
+        if (!EVP_EncryptInit_ex(ctx, NULL, NULL, key_data, iv_data)) {
+            EVP_CIPHER_CTX_free(ctx);
+            croak("EVP_EncryptInit_ex (key/iv) failed");
+        }
+
+        /* Process AAD if provided */
+        if (SvOK(aad) && SvCUR(aad) > 0) {
+            aad_data = (unsigned char *)SvPVbyte(aad, aad_len);
+            if (!EVP_EncryptUpdate(ctx, NULL, &aad_out_len, aad_data, (int)aad_len)) {
+                EVP_CIPHER_CTX_free(ctx);
+                croak("EVP_EncryptUpdate (AAD) failed");
+            }
+        }
+
+        Newx(out_data, plain_len + EVP_MAX_BLOCK_LENGTH, unsigned char);
+
+        /* Encrypt plaintext */
+        if (!EVP_EncryptUpdate(ctx, out_data, &out_len, plain_data, (int)plain_len)) {
+            Safefree(out_data);
+            EVP_CIPHER_CTX_free(ctx);
+            croak("EVP_EncryptUpdate failed");
+        }
+
+        /* Finalize */
+        if (!EVP_EncryptFinal_ex(ctx, out_data + out_len, &final_len)) {
+            Safefree(out_data);
+            EVP_CIPHER_CTX_free(ctx);
+            croak("EVP_EncryptFinal_ex failed");
+        }
+
+        /* Get the authentication tag */
+        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, AEAD_TAG_SIZE, tag)) {
+            Safefree(out_data);
+            EVP_CIPHER_CTX_free(ctx);
+            croak("Failed to get authentication tag");
+        }
+
+        EVP_CIPHER_CTX_free(ctx);
+
+        /* Return (ciphertext, tag) */
+        EXTEND(SP, 2);
+        PUSHs(sv_2mortal(newSVpvn((char *)out_data, out_len + final_len)));
+        PUSHs(sv_2mortal(newSVpvn((char *)tag, AEAD_TAG_SIZE)));
+        Safefree(out_data);
+
+SV *
+P_EVP_Cipher_AEAD_decrypt(cipher_name, key, iv, ciphertext, tag, aad=&PL_sv_undef)
+        const char *cipher_name
+        SV *key
+        SV *iv
+        SV *ciphertext
+        SV *tag
+        SV *aad
+    PREINIT:
+        EVP_CIPHER_CTX *ctx = NULL;
+        const EVP_CIPHER *cipher = NULL;
+        STRLEN key_len, iv_len, cipher_len, tag_len, aad_len;
+        unsigned char *key_data, *iv_data, *cipher_data, *tag_data, *aad_data = NULL;
+        unsigned char *out_data = NULL;
+        int out_len = 0, final_len = 0, aad_out_len = 0;
+        int expected_key_len;
+    CODE:
+        cipher = EVP_get_cipherbyname(cipher_name);
+        if (!cipher)
+            croak("Unknown cipher: %s", cipher_name);
+
+        expected_key_len = EVP_CIPHER_key_length(cipher);
+
+        key_data = (unsigned char *)SvPVbyte(key, key_len);
+        iv_data = (unsigned char *)SvPVbyte(iv, iv_len);
+        cipher_data = (unsigned char *)SvPVbyte(ciphertext, cipher_len);
+        tag_data = (unsigned char *)SvPVbyte(tag, tag_len);
+
+        if ((int)key_len != expected_key_len)
+            croak("Key length mismatch: expected %d bytes, got %lu", expected_key_len, (unsigned long)key_len);
+        if ((int)tag_len != AEAD_TAG_SIZE)
+            croak("Tag length mismatch: expected %d bytes, got %lu", AEAD_TAG_SIZE, (unsigned long)tag_len);
+
+        ctx = EVP_CIPHER_CTX_new();
+        if (!ctx)
+            croak("EVP_CIPHER_CTX_new failed");
+
+        /* Initialize cipher */
+        if (!EVP_DecryptInit_ex(ctx, cipher, NULL, NULL, NULL)) {
+            EVP_CIPHER_CTX_free(ctx);
+            croak("EVP_DecryptInit_ex (cipher) failed");
+        }
+
+        /* Set IV length */
+        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, (int)iv_len, NULL)) {
+            EVP_CIPHER_CTX_free(ctx);
+            croak("Failed to set IV length");
+        }
+
+        /* Set key and IV */
+        if (!EVP_DecryptInit_ex(ctx, NULL, NULL, key_data, iv_data)) {
+            EVP_CIPHER_CTX_free(ctx);
+            croak("EVP_DecryptInit_ex (key/iv) failed");
+        }
+
+        /* Process AAD if provided */
+        if (SvOK(aad) && SvCUR(aad) > 0) {
+            aad_data = (unsigned char *)SvPVbyte(aad, aad_len);
+            if (!EVP_DecryptUpdate(ctx, NULL, &aad_out_len, aad_data, (int)aad_len)) {
+                EVP_CIPHER_CTX_free(ctx);
+                croak("EVP_DecryptUpdate (AAD) failed");
+            }
+        }
+
+        Newx(out_data, cipher_len + EVP_MAX_BLOCK_LENGTH, unsigned char);
+
+        /* Decrypt ciphertext */
+        if (!EVP_DecryptUpdate(ctx, out_data, &out_len, cipher_data, (int)cipher_len)) {
+            Safefree(out_data);
+            EVP_CIPHER_CTX_free(ctx);
+            croak("EVP_DecryptUpdate failed");
+        }
+
+        /* Set the expected tag before finalizing */
+        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, AEAD_TAG_SIZE, tag_data)) {
+            Safefree(out_data);
+            EVP_CIPHER_CTX_free(ctx);
+            croak("Failed to set authentication tag");
+        }
+
+        /* Finalize - this verifies the tag */
+        if (!EVP_DecryptFinal_ex(ctx, out_data + out_len, &final_len)) {
+            Safefree(out_data);
+            EVP_CIPHER_CTX_free(ctx);
+            croak("AEAD authentication failed: data corrupted or tampered");
+        }
+
+        RETVAL = newSVpvn((char *)out_data, out_len + final_len);
+
+        EVP_CIPHER_CTX_free(ctx);
+        Safefree(out_data);
+    OUTPUT:
+        RETVAL
+
+#endif /* OpenSSL 1.0.0+ for EVP_CIPHER_CTX functions */
 
 void
 OpenSSL_add_all_algorithms()
